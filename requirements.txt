@@ -1,0 +1,8 @@
+pandas
+numpy
+datetime
+psycopg2-binary
+altair
+streamlit == 1.25.0
+streamlit-aggrid
+millify
