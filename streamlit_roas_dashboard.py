@@ -77,13 +77,19 @@ print("DONE PACKAGE DETATILS DF")
 
 
 
-def predicted_ltv():
+def predicted_ltv(country_option):
+    if country_option == 'GLOBAL':
+        country_filter = ''
+    else:
+        country_code = df_countries[df_countries['countryname'] == country_option]['countrycode'].unique()[0]
+        country_filter = 'AND "country" = \'{}\''.format(country_code)
     app_store_connect_events_query = """        
     SELECT "originalStartDate",
         "eventDate",
         "event",
         "appAppleId",
         "subscriptionAppleId",
+        "country",
         "proceedsReason",
         "consecutivePaidPeriods",
         SUM("quantity") as "quantity"
@@ -99,15 +105,17 @@ def predicted_ltv():
                     'Reactivate with Downgrade',
                     'Reactivate with Upgrade')
     AND "appAppleId" = '{}'
-    GROUP BY "originalStartDate", "eventDate", "event", "appAppleId", "subscriptionAppleId", "proceedsReason", "consecutivePaidPeriods"
-    """.format(app_id)
+    {} -- Ülke filtresi burada ekleniyor
+    GROUP BY "originalStartDate", "eventDate", "event", "appAppleId", "subscriptionAppleId", "proceedsReason", "consecutivePaidPeriods","country"
+    """.format(app_id, country_filter)
     events_df = read_sql_query_io(app_store_connect_events_query)
     print("GLOBAL DONE APP STORE CONNECT EVENTS DF")
-
 
     final_df = events_df.merge(package_details_df, 
             how='left',
             on = ['appAppleId', 'subscriptionAppleId'])
+    
+
     
     final_df['price'] = np.where(final_df['event']=='Refund', -1 * final_df['price'], final_df['price'])
     final_df['commissionRate'] = np.where(final_df['proceedsReason']=='Rate After One Year', 0.85, 0.70)
@@ -124,7 +132,7 @@ def predicted_ltv():
     (final_df['appAppleId'] == app_id) &
     (final_df['originalStartDate'] <= '2024-04-01') #bu tarih ve oncesini tahminlemede kullanir
     )
-    overall_df = final_df[overall_date_conditions]
+    overall_df = final_df[overall_date_conditions]   
 
     final_dict_predicted = {
         "appAppleId":[],
@@ -228,7 +236,6 @@ def predicted_ltv():
             ltv = originalRetentionArray.sum()/selected_retention_quantity_array[0]
         except IndexError:
             ltv = 0
-
         final_dict_predicted["appAppleId"].append(app_id)
         final_dict_predicted["subscriptionAppleId"].append(package)
         final_dict_predicted["predictedLtv"].append(ltv)
@@ -245,6 +252,7 @@ def predicted_ltv():
     time.sleep(0.25)
     success.empty()
     return blendedLtv
+
 
 
 
@@ -600,34 +608,46 @@ with st.form("LTV_View"):
         #                                        max_value = date.today() - timedelta(days=30)), '%Y-%m-%d')
 
         #period_option = st.selectbox('PERIOD', ('Weekly', 'Monthly'))
+    
+    # Ülke seçimi
+    countries = df_countries['countryname'].unique()
+    country_option = st.selectbox('COUNTRY', countries)
 
     st.write("")
     submit_button_detailedAppView = st.form_submit_button("SUBMIT")
     st.write("")
 
     if submit_button_detailedAppView:
-        if country_option == 'GLOBAL':
-            start_date = datetime(2023, 6, 1)
-            end_date = datetime.today().replace(day=1) - timedelta(days=1)
-            data = []
-            current_date = start_date
-            while current_date <= end_date:
-                start = current_date.replace(day=1)
-                last_day = calendar.monthrange(current_date.year, current_date.month)[1]
-                end = current_date.replace(day=last_day)
+        start_date = datetime(2023, 6, 1)
+        end_date = datetime.today().replace(day=1) - timedelta(days=1)
+        data = []
+        current_date = start_date
+        valid_data_found = False  # Geçerli veri olup olmadığını izlemek için bir flag
 
-                start = datetime.strftime(start, '%Y-%m-%d')
-                end = datetime.strftime(end, '%Y-%m-%d')
+        while current_date <= end_date:
+            start = current_date.replace(day=1)
+            last_day = calendar.monthrange(current_date.year, current_date.month)[1]
+            end = current_date.replace(day=last_day)
 
-                ltv = predicted_ltv()
-                
+            start = datetime.strftime(start, '%Y-%m-%d')
+            end = datetime.strftime(end, '%Y-%m-%d')
+
+            # Seçilen ülkeyi predicted_ltv fonksiyonuna geçir
+            ltv = predicted_ltv(country_option)  # Ülke seçeneğini geç
+
+            if ltv is not None and not pd.isna(ltv):  # LTV değeri geçerliyse (None veya NaN değilse)
+                valid_data_found = True
                 month_str = current_date.strftime('%Y-%m')
-                
                 data.append({'Month': month_str, 'LTV': ltv})
-                
-                next_month = current_date.replace(day=28) + timedelta(days=4)  # this will always be in the next month
-                current_date = next_month.replace(day=1)
+            
+            next_month = current_date.replace(day=28) + timedelta(days=4)  # Her zaman bir sonraki aya geçer
+            current_date = next_month.replace(day=1)
 
+        # Eğer geçerli veri bulunmamışsa No values found mesajı göster
+        if not valid_data_found:
+            st.toast('No values found!', icon='⚠️')
+            st.warning('No values found!', icon="⚠️")
+        else:
             df = pd.DataFrame(data)
             #print("MANUEL", predicted_ltv())
             df['Month'] = pd.to_datetime(df['Month'])
@@ -636,19 +656,18 @@ with st.form("LTV_View"):
                 x=alt.X('yearmonth(Month):T', title='Month', axis=alt.Axis(format='%Y-%m', labelAngle=-45)),
                 y=alt.Y('LTV:Q', title='LTV'),
             ).configure_mark(
-                opacity = 0.95, 
-                color = 'rgb(153, 255, 204)' #rgb(37, 150, 190)
+                opacity=0.95,
+                color='rgb(153, 255, 204)'
             ).configure_axis(
-                titleColor = 'rgb(204, 143, 37)', 
-                titleFontWeight = 'bold', 
-                titleFontSize = 17, 
-                gridOpacity = 0.7
+                titleColor='rgb(204, 143, 37)',
+                titleFontWeight='bold',
+                titleFontSize=17,
+                gridOpacity=0.7
             )
 
-        
             st.write("")
             st.write("")
-            st.altair_chart(ltv_chart, use_container_width = True)
+            st.altair_chart(ltv_chart, use_container_width=True)
             st.write("")
             st.write("")
             st.toast('Ready to use! Bon appetit.', icon='🥪')
