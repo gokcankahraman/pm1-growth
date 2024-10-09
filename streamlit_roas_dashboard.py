@@ -17,12 +17,7 @@ st.write("")
 st.write("")
 st.write("")
 
-conn = psycopg2.connect(
-    host = "marketing.cr5pv7cwfwjc.us-east-1.rds.amazonaws.com",
-    database = "marketing",
-    user = "marketing_admin",
-    password = "marketingPM1"
-)
+conn = st.connection("postgresql", type="sql")
 
 cursor = conn.cursor()
 
