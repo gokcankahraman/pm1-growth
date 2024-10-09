@@ -17,8 +17,18 @@ st.write("")
 st.write("")
 st.write("")
 
-conn = st.connection("postgresql", type="sql")
+# Streamlit secrets'den veritabanı bilgilerini çekmek
+db_info = st.secrets["postgresql"]
 
+# Veritabanı bağlantısı kurma
+conn = psycopg2.connect(
+    host=db_info["host"],
+    database=db_info["database"],
+    user=db_info["user"],
+    password=db_info["password"]
+)
+
+# Cursor oluşturma
 cursor = conn.cursor()
 
 print("SUCCESSFUL DB CONNECTION")
