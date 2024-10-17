@@ -17,18 +17,13 @@ st.write("")
 st.write("")
 st.write("")
 
-# Streamlit secrets'den veritabanı bilgilerini çekmek
-db_info = st.secrets["postgresql"]
-
-# Veritabanı bağlantısı kurma
 conn = psycopg2.connect(
-    host=db_info["host"],
-    database=db_info["database"],
-    user=db_info["user"],
-    password=db_info["password"]
+    host = "marketing.cr5pv7cwfwjc.us-east-1.rds.amazonaws.com",
+    database = "marketing",
+    user = "marketing_admin",
+    password = "marketingPM1"
 )
 
-# Cursor oluşturma
 cursor = conn.cursor()
 
 print("SUCCESSFUL DB CONNECTION")
@@ -586,7 +581,7 @@ st.write("")
 st.write("")
 st.write("")
 st.write("")
-st.markdown("<h3 style='text-align: left; color: rgb(153, 255, 204);'>Blended Predicted LTV</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: left; color: rgb(153, 255, 204);'>Blended Calculated LTV</h3>", unsafe_allow_html=True)
 
 with st.form("LTV_View"):
     #col1, col2 = st.columns(2)
